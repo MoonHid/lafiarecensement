@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Ajouter ou modifier un véhicule
 function addVehicle() {
     const vehicleId = document.getElementById('vehicle-id').value;
+    const categorie = document.getElementById('categorie-select').value;
     const immat = document.getElementById('immat').value.trim();
     const marque = document.getElementById('marque').value.trim();
     const situation = document.querySelector('input[name="situation"]:checked')?.value;
@@ -16,7 +17,7 @@ function addVehicle() {
     const planning = document.querySelector('input[name="planning"]:checked')?.value;
 
     // Validation
-    if (!immat || !marque || !situation || !planning) {
+    if (!immat || !marque || !situation || !planning || !categorie) {
         alert('Veuillez remplir tous les champs obligatoires (*)');
         return;
     }
@@ -29,6 +30,7 @@ function addVehicle() {
         if (vehicleIndex !== -1) {
             vehicles[vehicleIndex] = {
                 ...vehicles[vehicleIndex],
+                categorie,
                 immat,
                 marque,
                 situation,
@@ -53,6 +55,7 @@ function addVehicle() {
     // Créer le nouvel objet véhicule
     const vehicle = {
         id: Date.now(),
+        categorie,
         immat,
         marque,
         situation,
@@ -83,6 +86,7 @@ function editVehicle(id) {
 
     // Remplir le formulaire avec les données du véhicule
     document.getElementById('vehicle-id').value = vehicle.id;
+    document.getElementById('categorie-select').value = vehicle.categorie || 'Ligne 1';
     document.getElementById('immat').value = vehicle.immat;
     document.getElementById('marque').value = vehicle.marque;
     document.getElementById('observation').value = vehicle.observation;
@@ -126,6 +130,7 @@ function deleteVehicle(id) {
 // Réinitialiser le formulaire
 function resetForm() {
     document.getElementById('vehicle-id').value = '';
+    document.getElementById('categorie-select').value = 'Ligne 1';
     document.getElementById('immat').value = '';
     document.getElementById('marque').value = '';
     document.getElementById('observation').value = '';
@@ -169,20 +174,29 @@ function renderVehicles() {
         return;
     }
 
-    tableBody.innerHTML = vehicles.map(vehicle => `
-        <tr>
-            <td><strong>${vehicle.immat}</strong></td>
-            <td>${vehicle.marque}</td>
-            <td><span class="situation ${getSituationClass(vehicle.situation)}">${vehicle.situation}</span></td>
-            <td>${vehicle.observation || '-'}</td>
-            <td><span class="planning ${getPlanningClass(vehicle.planning)}">${vehicle.planning}</span></td>
-            <td>
-                <button class="btn btn-primary btn-small" onclick="editVehicle(${vehicle.id})">Modifier</button>
-                <button class="btn btn-danger btn-small" onclick="deleteVehicle(${vehicle.id})">Supprimer</button>
-            </td>
-        </tr>
-    `).join('');
-
+    // Grouper les véhicules par catégorie
+    const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
+    let html = '';
+    categories.forEach(cat => {
+        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
+        if (catVehicles.length > 0) {
+            html += `<tr><td colspan="6" style="background:#e0e7ff;font-weight:bold;font-size:15px;">${cat}</td></tr>`;
+            html += catVehicles.map(vehicle => `
+                <tr>
+                    <td><strong>${vehicle.immat}</strong></td>
+                    <td>${vehicle.marque}</td>
+                    <td><span class="situation ${getSituationClass(vehicle.situation)}">${vehicle.situation}</span></td>
+                    <td>${vehicle.observation || '-'}</td>
+                    <td><span class="planning ${getPlanningClass(vehicle.planning)}">${vehicle.planning}</span></td>
+                    <td>
+                        <button class="btn btn-primary btn-small" onclick="editVehicle(${vehicle.id})">Modifier</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteVehicle(${vehicle.id})">Supprimer</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    });
+    tableBody.innerHTML = html;
     updateStats();
 }
 
@@ -204,7 +218,8 @@ function getPlanningClass(planning) {
 
 // Exporter en PDF
 function exportToPDF() {
-    const element = document.querySelector('.table-section');
+    const vehicles = getVehicles();
+    const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
     const opt = {
         margin: 10,
         filename: `Garage_Inventaire_${new Date().toLocaleDateString('fr-FR')}.pdf`,
@@ -214,14 +229,52 @@ function exportToPDF() {
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
-    // Clone du tableau pour le PDF
-    const clone = element.cloneNode(true);
-    
     // Créer un conteneur temporaire
     const tempDiv = document.createElement('div');
     tempDiv.style.padding = '20px';
     tempDiv.innerHTML = '<h1 style="text-align: center; margin-bottom: 20px;">Inventaire Garage - ' + new Date().toLocaleDateString('fr-FR') + '</h1>';
-    tempDiv.appendChild(clone);
+
+    categories.forEach(cat => {
+        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
+        if (catVehicles.length > 0) {
+            // Titre de catégorie
+            const catTitle = document.createElement('h2');
+            catTitle.textContent = cat;
+            catTitle.style.background = '#e0e7ff';
+            catTitle.style.padding = '8px 0 8px 10px';
+            catTitle.style.fontSize = '18px';
+            catTitle.style.margin = '20px 0 5px 0';
+            tempDiv.appendChild(catTitle);
+
+            // Tableau pour la catégorie
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            table.innerHTML = `
+                <thead style="background:#667eea;color:white;">
+                    <tr>
+                        <th>P. Immat</th>
+                        <th>Marque/Couleur</th>
+                        <th>Situation</th>
+                        <th>Observation</th>
+                        <th>Planning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${catVehicles.map(vehicle => `
+                        <tr>
+                            <td><strong>${vehicle.immat}</strong></td>
+                            <td>${vehicle.marque}</td>
+                            <td>${vehicle.situation}</td>
+                            <td>${vehicle.observation || '-'}</td>
+                            <td>${vehicle.planning}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            tempDiv.appendChild(table);
+        }
+    });
 
     html2pdf().set(opt).from(tempDiv).save();
 }
