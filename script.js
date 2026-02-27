@@ -224,68 +224,79 @@ function getPlanningClass(planning) {
 
 // Exporter en PDF
 function exportToPDF() {
+    const { jsPDF } = window.jspdf;
     const vehicles = getVehicles();
     const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
-    const opt = {
-        margin: 10,
-        filename: `Garage_Inventaire_${new Date().toLocaleDateString('fr-FR')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { orientation: 'landscape', unit: 'mm', format: 'a4' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
 
-    // Créer un conteneur temporaire
-    const tempDiv = document.createElement('div');
-    tempDiv.style.padding = '20px';
-    tempDiv.innerHTML = '<h1 style="text-align: center; margin-bottom: 20px;">Inventaire Garage - ' + new Date().toLocaleDateString('fr-FR') + '</h1>';
+    if (vehicles.length === 0) {
+        alert("Aucun véhicule à exporter.");
+        return;
+    }
 
-    categories.forEach(cat => {
-        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
-        if (catVehicles.length > 0) {
-            // Titre de catégorie
-            const catTitle = document.createElement('h2');
-            catTitle.textContent = cat;
-            catTitle.style.background = '#e0e7ff';
-            catTitle.style.padding = '8px 0 8px 10px';
-            catTitle.style.fontSize = '18px';
-            catTitle.style.margin = '20px 0 5px 0';
-            tempDiv.appendChild(catTitle);
-
-            // Tableau pour la catégorie
-            const table = document.createElement('table');
-            table.style.width = '100%';
-            table.style.borderCollapse = 'collapse';
-            table.innerHTML = `
-                <thead style="background:#667eea;color:white;">
-                    <tr>
-                        <th>P. Immat</th>
-                        <th>Marque/Couleur</th>
-                        <th>Situation</th>
-                        <th>Observation</th>
-                        <th>Planning</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${catVehicles.map(vehicle => `
-                        <tr>
-                            <td><strong>${vehicle.immat}</strong></td>
-                            <td>${vehicle.marque}</td>
-                            <td>${vehicle.situation}</td>
-                            <td>${vehicle.observation || '-'}</td>
-                            <td>${vehicle.planning}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-            tempDiv.appendChild(table);
-        }
+    const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
     });
 
-    html2pdf().set(opt).from(tempDiv).save();
-}
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 15;
+    const lineHeight = 8;
 
-// Exporter les données en JSON (caché sous le PDF)
+    categories.forEach((cat, index) => {
+        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
+
+        if (catVehicles.length === 0) return;
+
+        if (index !== 0) {
+            doc.addPage();
+        }
+
+        // ===== TITRE =====
+        doc.setFontSize(18);
+        doc.text("Inventaire Garage", pageWidth / 2, 20, { align: "center" });
+
+        doc.setFontSize(14);
+        doc.text(cat, pageWidth / 2, 30, { align: "center" });
+
+        doc.setFontSize(10);
+        doc.text("Date : " + new Date().toLocaleDateString('fr-FR'), margin, 40);
+
+        let y = 50;
+
+        // ===== ENTÊTE TABLEAU =====
+        doc.setFillColor(230, 230, 230);
+        doc.rect(margin, y - 6, pageWidth - margin * 2, 8, "F");
+
+        doc.text("Immat", margin + 2, y);
+        doc.text("Marque", margin + 35, y);
+        doc.text("Situation", margin + 85, y);
+        doc.text("Observation", margin + 120, y);
+        doc.text("Planning", margin + 165, y);
+
+        y += 8;
+
+        // ===== LIGNES =====
+        catVehicles.forEach(vehicle => {
+
+            if (y > pageHeight - 20) {
+                doc.addPage();
+                y = 20;
+            }
+
+            doc.text(vehicle.immat || "", margin + 2, y);
+            doc.text(vehicle.marque || "", margin + 35, y);
+            doc.text(vehicle.situation || "", margin + 85, y);
+            doc.text((vehicle.observation || "-").substring(0, 25), margin + 120, y);
+            doc.text(vehicle.planning || "", margin + 165, y);
+
+            y += lineHeight;
+        });
+    });
+
+    doc.save("Garage_Inventaire_" + new Date().toLocaleDateString('fr-FR') + ".pdf");
+}// Exporter les données en JSON (caché sous le PDF)
 function exportToJSON() {
     const vehicles = getVehicles();
     const dataStr = JSON.stringify(vehicles, null, 2);
@@ -398,4 +409,5 @@ document.addEventListener('DOMContentLoaded', function() {
     // Rendre accessible via console pour avancés
     window.exportJSON = exportJSON;
 });
+
 
