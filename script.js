@@ -17,7 +17,7 @@ function addVehicle() {
     const planning = document.querySelector('input[name="planning"]:checked')?.value;
 
     // Validation
-    if (!immat || !marque || !situation || !planning || !categorie) {
+    if (!immat || !marque || !situation || !categorie) {
         alert('Veuillez remplir tous les champs obligatoires (*)');
         return;
     }
@@ -227,58 +227,59 @@ function exportToPDF() {
     const vehicles = getVehicles();
     const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
     const opt = {
-        margin: 10,
+        margin: [10, 10, 10, 10],
         filename: `Garage_Inventaire_${new Date().toLocaleDateString('fr-FR')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { orientation: 'landscape', unit: 'mm', format: 'a4' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        html2canvas: { scale: 1, useCORS: true, logging: false },
+        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+        pagebreak: { mode: 'css' }
     };
 
     // Créer un conteneur temporaire
     const tempDiv = document.createElement('div');
-    tempDiv.style.padding = '20px';
-    tempDiv.innerHTML = '<h1 style="text-align: center; margin-bottom: 20px;">Inventaire Garage - ' + new Date().toLocaleDateString('fr-FR') + '</h1>';
+    tempDiv.style.cssText = 'width:190mm; padding:0; margin:0; font-family:Arial,sans-serif; font-size:12px;';
+
+    tempDiv.innerHTML = `<h1 style="text-align:center; margin:0 0 16px 0; font-size:18px; color:#333;">Inventaire Garage - ${new Date().toLocaleDateString('fr-FR')}</h1>`;
 
     categories.forEach(cat => {
         const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
         if (catVehicles.length > 0) {
+            const section = document.createElement('div');
+            section.style.cssText = 'margin-bottom:14px; page-break-inside: avoid;';
+
             // Titre de catégorie
-            const catTitle = document.createElement('h2');
+            const catTitle = document.createElement('div');
             catTitle.textContent = cat;
-            catTitle.style.background = '#e0e7ff';
-            catTitle.style.padding = '8px 0 8px 10px';
-            catTitle.style.fontSize = '18px';
-            catTitle.style.margin = '20px 0 5px 0';
-            tempDiv.appendChild(catTitle);
+            catTitle.style.cssText = 'background:#e0e7ff; padding:6px 10px; font-size:13px; font-weight:bold; color:#333; margin-bottom:0;';
+            section.appendChild(catTitle);
 
             // Tableau pour la catégorie
             const table = document.createElement('table');
-            table.style.width = '100%';
-            table.style.borderCollapse = 'collapse';
+            table.style.cssText = 'width:100%; border-collapse:collapse; table-layout:fixed;';
             table.innerHTML = `
-                <thead style="background:#667eea;color:white;">
-                    <tr>
-                        <th>P. Immat</th>
-                        <th>Marque/Couleur</th>
-                        <th>Situation</th>
-                        <th>Observation</th>
-                        <th>Planning</th>
+                <thead>
+                    <tr style="background:#667eea; color:white;">
+                        <th style="padding:6px 8px; text-align:left; border:1px solid #5a6fd6; width:18%;">P. Immat</th>
+                        <th style="padding:6px 8px; text-align:left; border:1px solid #5a6fd6; width:22%;">Marque/Couleur</th>
+                        <th style="padding:6px 8px; text-align:left; border:1px solid #5a6fd6; width:18%;">Situation</th>
+                        <th style="padding:6px 8px; text-align:left; border:1px solid #5a6fd6; width:28%;">Observation</th>
+                        <th style="padding:6px 8px; text-align:left; border:1px solid #5a6fd6; width:14%;">Planning</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${catVehicles.map(vehicle => `
-                        <tr>
-                            <td><strong>${vehicle.immat}</strong></td>
-                            <td>${vehicle.marque}</td>
-                            <td>${vehicle.situation}</td>
-                            <td>${vehicle.observation || '-'}</td>
-                            <td>${vehicle.planning}</td>
+                    ${catVehicles.map((vehicle, i) => `
+                        <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8f9ff'};">
+                            <td style="padding:5px 8px; border:1px solid #ddd; font-weight:bold;">${vehicle.immat}</td>
+                            <td style="padding:5px 8px; border:1px solid #ddd;">${vehicle.marque}</td>
+                            <td style="padding:5px 8px; border:1px solid #ddd;">${vehicle.situation}</td>
+                            <td style="padding:5px 8px; border:1px solid #ddd;">${vehicle.observation || '-'}</td>
+                            <td style="padding:5px 8px; border:1px solid #ddd;">${vehicle.planning || '-'}</td>
                         </tr>
                     `).join('')}
                 </tbody>
             `;
-            tempDiv.appendChild(table);
+            section.appendChild(table);
+            tempDiv.appendChild(section);
         }
     });
 
