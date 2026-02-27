@@ -1,472 +1,400 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion Garage - Inventaire Véhicules</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://pdftron.com/downloads/pl/webviewer-demo-annotated.pdf"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+// Clé pour localStorage
+const STORAGE_KEY = 'garage_vehicles';
+
+// Charger les véhicules au démarrage
+document.addEventListener('DOMContentLoaded', function() {
+    loadVehicles();
+});
+
+// Ajouter ou modifier un véhicule
+function addVehicle() {
+    const vehicleId = document.getElementById('vehicle-id').value;
+    const categorie = document.getElementById('categorie-select').value;
+    const immat = document.getElementById('immat').value.trim();
+    const marque = document.getElementById('marque').value.trim();
+    const situation = document.querySelector('input[name="situation"]:checked')?.value;
+    const observation = document.getElementById('observation').value.trim();
+    const planning = document.querySelector('input[name="planning"]:checked')?.value;
+
+    // Validation
+    if (!immat || !marque || !situation || !planning || !categorie) {
+        alert('Veuillez remplir tous les champs obligatoires (*)');
+        return;
+    }
+
+    const vehicles = getVehicles();
+
+    // Cas de modification
+    if (vehicleId) {
+        const vehicleIndex = vehicles.findIndex(v => v.id === parseInt(vehicleId));
+        if (vehicleIndex !== -1) {
+            vehicles[vehicleIndex] = {
+                ...vehicles[vehicleIndex],
+                categorie,
+                immat,
+                marque,
+                situation,
+                observation,
+                planning
+            };
+            saveVehicles(vehicles);
+            alert('Véhicule modifié avec succès !');
+            cancelEdit();
+            renderVehicles();
+            scrollToVehicles();
         }
+        return;
+    }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+    // Cas d'ajout
+    if (vehicles.some(v => v.immat.toUpperCase() === immat.toUpperCase())) {
+        alert('Ce véhicule existe déjà!');
+        return;
+    }
+
+    // Créer le nouvel objet véhicule
+    const vehicle = {
+        id: Date.now(),
+        categorie,
+        immat,
+        marque,
+        situation,
+        observation,
+        planning
+    };
+
+    // Ajouter à la liste
+    vehicles.push(vehicle);
+    saveVehicles(vehicles);
+
+    // Réinitialiser le formulaire
+    resetForm();
+
+    // Recharger le tableau
+    renderVehicles();
+
+    // Afficher un message de succès
+    scrollToVehicles();
+}
+
+// Éditer un véhicule
+function editVehicle(id) {
+    const vehicles = getVehicles();
+    const vehicle = vehicles.find(v => v.id === id);
+
+    if (!vehicle) return;
+
+    // Remplir le formulaire avec les données du véhicule
+    document.getElementById('vehicle-id').value = vehicle.id;
+    document.getElementById('categorie-select').value = vehicle.categorie || 'Ligne 1';
+    document.getElementById('immat').value = vehicle.immat;
+    document.getElementById('marque').value = vehicle.marque;
+    document.getElementById('observation').value = vehicle.observation;
+
+    // Cocher les radio buttons appropriés
+    document.querySelectorAll('input[name="situation"]').forEach(input => {
+        input.checked = input.value === vehicle.situation;
+    });
+    document.querySelectorAll('input[name="planning"]').forEach(input => {
+        input.checked = input.value === vehicle.planning;
+    });
+
+    // Changer le titre et les boutons
+    document.getElementById('form-title').textContent = '✏️ Modifier un véhicule';
+    document.getElementById('submit-btn').textContent = 'Enregistrer les modifications';
+    document.getElementById('cancel-btn').style.display = 'block';
+
+    // Scroll vers le formulaire
+    scrollToForm();
+}
+
+// Annuler la modification
+function cancelEdit() {
+    document.getElementById('vehicle-id').value = '';
+    resetForm();
+    document.getElementById('form-title').textContent = 'Ajouter un véhicule';
+    document.getElementById('submit-btn').textContent = 'Ajouter le véhicule';
+    document.getElementById('cancel-btn').style.display = 'none';
+}
+
+// Supprimer un véhicule
+function deleteVehicle(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce véhicule ?')) {
+        let vehicles = getVehicles();
+        vehicles = vehicles.filter(v => v.id !== id);
+        saveVehicles(vehicles);
+        renderVehicles();
+    }
+}
+
+// Réinitialiser le formulaire
+function resetForm() {
+    document.getElementById('vehicle-id').value = '';
+    document.getElementById('categorie-select').value = 'Ligne 1';
+    document.getElementById('immat').value = '';
+    document.getElementById('marque').value = '';
+    document.getElementById('observation').value = '';
+    document.querySelectorAll('input[name="situation"]').forEach(input => input.checked = false);
+    document.querySelectorAll('input[name="planning"]').forEach(input => input.checked = false);
+    document.getElementById('immat').focus();
+}
+
+// Récupérer les véhicules du localStorage
+function getVehicles() {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+}
+
+// Sauvegarder les véhicules
+function saveVehicles(vehicles) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(vehicles));
+    updateStats();
+}
+
+// Charger et afficher les véhicules
+function loadVehicles() {
+    renderVehicles();
+}
+
+// Afficher les véhicules dans le tableau
+function renderVehicles() {
+    const vehicles = getVehicles();
+    const tableBody = document.getElementById('table-body');
+
+    if (vehicles.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <p>Aucun véhicule actuellement. Ajoutez votre premier véhicule !</p>
+                </td>
+            </tr>
+        `;
+        updateStats();
+        return;
+    }
+
+    // Grouper les véhicules par catégorie
+    const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
+    let html = '';
+    categories.forEach((cat, idx) => {
+        // Ajoute un espace avant chaque catégorie sauf la première
+        if (idx > 0) {
+            html += `<tr><td colspan="6" style="height:18px;background:transparent;"></td></tr>`;
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            padding: 30px;
+        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
+        html += `<tr><td colspan="6" style="background:#e0e7ff;font-weight:bold;font-size:15px;">${cat}</td></tr>`;
+        if (catVehicles.length > 0) {
+            html += catVehicles.map(vehicle => `
+                <tr>
+                    <td><strong>${vehicle.immat}</strong></td>
+                    <td>${vehicle.marque}</td>
+                    <td><span class="situation ${getSituationClass(vehicle.situation)}">${vehicle.situation}</span></td>
+                    <td>${vehicle.observation || '-'}</td>
+                    <td><span class="planning ${getPlanningClass(vehicle.planning)}">${vehicle.planning}</span></td>
+                    <td>
+                        <button class="btn btn-primary btn-small" onclick="editVehicle(${vehicle.id})">Modifier</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteVehicle(${vehicle.id})">Supprimer</button>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            html += `<tr><td colspan="6" style="text-align:center;color:#888;font-style:italic;">Aucun véhicule dans cette catégorie</td></tr>`;
         }
+    });
+    tableBody.innerHTML = html;
+    updateStats();
+}
 
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-            text-align: center;
-        }
+// Déterminer la classe CSS pour la situation
+function getSituationClass(situation) {
+    const classMap = {
+        'Diagnostique': 'diagnostique',
+        'En attente pièce': 'attente-piece',
+        'En attente planif': 'attente-planif',
+        'Recherche pièce': 'recherche-piece'
+    };
+    return classMap[situation] || '';
+}
 
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
+// Déterminer la classe CSS pour le planning
+function getPlanningClass(planning) {
+    return planning === 'Déjà planifié' ? 'planifie' : 'planifier';
+}
 
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
+// Exporter en PDF
+function exportToPDF() {
+    const vehicles = getVehicles();
+    const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
+    const opt = {
+        margin: 10,
+        filename: `Garage_Inventaire_${new Date().toLocaleDateString('fr-FR')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { orientation: 'landscape', unit: 'mm', format: 'a4' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
 
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
+    // Créer un conteneur temporaire
+    const tempDiv = document.createElement('div');
+    tempDiv.style.padding = '20px';
+    tempDiv.innerHTML = '<h1 style="text-align: center; margin-bottom: 20px;">Inventaire Garage - ' + new Date().toLocaleDateString('fr-FR') + '</h1>';
 
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
+    categories.forEach(cat => {
+        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
+        if (catVehicles.length > 0) {
+            // Titre de catégorie
+            const catTitle = document.createElement('h2');
+            catTitle.textContent = cat;
+            catTitle.style.background = '#e0e7ff';
+            catTitle.style.padding = '8px 0 8px 10px';
+            catTitle.style.fontSize = '18px';
+            catTitle.style.margin = '20px 0 5px 0';
+            tempDiv.appendChild(catTitle);
 
-        .btn-success {
-            background: #48bb78;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #38a169;
-            transform: translateY(-2px);
-        }
-
-        .btn-danger {
-            background: #f56565;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #e53e3e;
-        }
-
-        .btn-secondary {
-            background: #718096;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #4a5568;
-        }
-
-        .form-section {
-            background: #f7fafc;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        label {
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: #2d3748;
-            font-size: 13px;
-        }
-
-        input[type="text"],
-        select,
-        textarea {
-            padding: 10px;
-            border: 1px solid #cbd5e0;
-            border-radius: 5px;
-            font-size: 14px;
-            font-family: inherit;
-        }
-
-        input[type="text"]:focus,
-        select:focus,
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        .checkbox-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        input[type="checkbox"],
-        input[type="radio"] {
-            cursor: pointer;
-            width: 16px;
-            height: 16px;
-        }
-
-        .radio-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .radio-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        input[type="file"] {
-            padding: 8px;
-        }
-
-        .table-section {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        thead {
-            background: #667eea;
-            color: white;
-        }
-
-        th {
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        tbody tr:hover {
-            background: #f7fafc;
-        }
-
-        tbody tr:nth-child(even) {
-            background: #f9fafb;
-        }
-
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 12px;
-            border-radius: 4px;
-        }
-
-        .situation {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .situation.diagnostique {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .situation.attente-piece {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .situation.attente-planif {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .situation.recherche-piece {
-            background: #e9d5ff;
-            color: #581c87;
-        }
-
-        .planning {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .planning.planifier {
-            background: #fed7aa;
-            color: #92400e;
-        }
-
-        .planning.planifie {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #718096;
-        }
-
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-
-        #pdf-import {
-            display: none;
-        }
-
-        .hidden-print {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-        }
-
-        @media print {
-            body {
-                background: white;
-                padding: 0;
-            }
-
-            .container {
-                box-shadow: none;
-                padding: 0;
-            }
-
-            .controls,
-            .form-section {
-                display: none;
-            }
-
-            .table-section {
-                overflow-x: visible;
-            }
-
-            table {
-                page-break-inside: avoid;
-            }
-
-            thead {
-                display: table-header-group;
-            }
-
-            tbody tr {
-                page-break-inside: avoid;
-            }
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-card h3 {
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-
-        .stat-card p {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔧 Gestion Garage - Inventaire Véhicules</h1>
-
-        <div class="stats">
-            <div class="stat-card">
-                <h3 id="total-vehicles">0</h3>
-                <p>Véhicules total</p>
-            </div>
-            <div class="stat-card">
-                <h3 id="total-diagnostique">0</h3>
-                <p>En diagnostic</p>
-            </div>
-            <div class="stat-card">
-                <h3 id="total-attente">0</h3>
-                <p>En attente</p>
-            </div>
-        </div>
-
-        <div class="controls">
-            <button class="btn btn-primary" onclick="scrollToForm()">➕ Ajouter un Véhicule</button>
-            <button class="btn btn-success" onclick="exportToPDF()">📥 Exporter en PDF</button>
-            <button class="btn btn-info" onclick="exportToJSON()">💾 Exporter en JSON</button>
-            <button class="btn btn-secondary" onclick="document.getElementById('json-import').click()">📤 Importer JSON</button>
-            <button class="btn btn-danger" onclick="clearAllData()">🗑️ Tout Effacer</button>
-            <input type="file" id="json-import" accept=".json" onchange="importFromJSON(event)">
-        </div>
-
-        <div class="form-section" id="form-section">
-            <label for="categorie-select" style="font-weight:bold;margin-bottom:5px;display:block;">Catégorie</label>
-            <select id="categorie-select" style="margin-bottom:15px;width:200px;">
-                <option value="Ligne 1">Ligne 1</option>
-                <option value="Ligne 2">Ligne 2</option>
-                <option value="Ligne 3">Ligne 3</option>
-                <option value="Ligne 4">Ligne 4</option>
-                <option value="Ligne 5">Ligne 5</option>
-            </select>
-            <h2 id="form-title">Ajouter un véhicule</h2>
-            <input type="hidden" id="vehicle-id">
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="immat">P. Immatriculation *</label>
-                    <input type="text" id="immat" placeholder="Ex: AB-123-CD" required>
-                </div>
-                <div class="form-group">
-                    <label for="marque">Marque/Couleur *</label>
-                    <input type="text" id="marque" placeholder="Ex: Peugeot 207 Noir" required>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Situation *</label>
-                    <div class="radio-group">
-                        <div class="radio-item">
-                            <input type="radio" id="situation-diagnostic" name="situation" value="Diagnostique" required>
-                            <label for="situation-diagnostic">Diagnostique</label>
-                        </div>
-                        <div class="radio-item">
-                            <input type="radio" id="situation-attente-piece" name="situation" value="En attente pièce">
-                            <label for="situation-attente-piece">En attente pièce</label>
-                        </div>
-                        <div class="radio-item">
-                            <input type="radio" id="situation-attente-planif" name="situation" value="En attente planif">
-                            <label for="situation-attente-planif">En attente planif</label>
-                        </div>
-                        <div class="radio-item">
-                            <input type="radio" id="situation-recherche" name="situation" value="Recherche pièce">
-                            <label for="situation-recherche">Recherche pièce</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="observation">Observation</label>
-                    <textarea id="observation" placeholder="Notez les détails importants..."></textarea>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Planning *</label>
-                    <div class="radio-group">
-                        <div class="radio-item">
-                            <input type="radio" id="planning-planifier" name="planning" value="Planifier">
-                            <label for="planning-planifier">À Planifier</label>
-                        </div>
-                        <div class="radio-item">
-                            <input type="radio" id="planning-planifie" name="planning" value="Déjà planifié">
-                            <label for="planning-planifie">Déjà planifié</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-                <button class="btn btn-primary" id="submit-btn" onclick="addVehicle()">Ajouter le véhicule</button>
-                <button class="btn btn-secondary" id="cancel-btn" onclick="cancelEdit()" style="display: none;">Annuler</button>
-            </div>
-        </div>
-
-        <div class="table-section">
-            <table id="vehicles-table">
-                <thead>
+            // Tableau pour la catégorie
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            table.innerHTML = `
+                <thead style="background:#667eea;color:white;">
                     <tr>
                         <th>P. Immat</th>
                         <th>Marque/Couleur</th>
                         <th>Situation</th>
                         <th>Observation</th>
                         <th>Planning</th>
-                        <th>Action</th>
                     </tr>
                 </thead>
-                <tbody id="table-body">
-                    <tr>
-                        <td colspan="6" class="empty-state">
-                            <div class="empty-state-icon">📋</div>
-                            <p>Aucun véhicule actuellement. Ajoutez votre premier véhicule !</p>
-                        </td>
-                    </tr>
+                <tbody>
+                    ${catVehicles.map(vehicle => `
+                        <tr>
+                            <td><strong>${vehicle.immat}</strong></td>
+                            <td>${vehicle.marque}</td>
+                            <td>${vehicle.situation}</td>
+                            <td>${vehicle.observation || '-'}</td>
+                            <td>${vehicle.planning}</td>
+                        </tr>
+                    `).join('')}
                 </tbody>
-            </table>
-        </div>
-    </div>
+            `;
+            tempDiv.appendChild(table);
+        }
+    });
 
-    <script src="script.js"></script>
-</body>
-</html>
+    html2pdf().set(opt).from(tempDiv).save();
+}
+
+// Exporter les données en JSON (caché sous le PDF)
+function exportToJSON() {
+    const vehicles = getVehicles();
+    const dataStr = JSON.stringify(vehicles, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Garage_Sauvegarde_${new Date().toLocaleDateString('fr-FR')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Importer depuis JSON
+function importFromJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const content = e.target.result;
+            let data;
+
+            // Essayer de parser comme JSON d'abord
+            try {
+                data = JSON.parse(content);
+                if (Array.isArray(data)) {
+                    if (confirm('Cela ajoutera ' + data.length + ' véhicule(s). Continuer ?')) {
+                        let vehicles = getVehicles();
+                        vehicles = vehicles.concat(data);
+                        saveVehicles(vehicles);
+                        renderVehicles();
+                        alert('Données importées avec succès !');
+                    }
+                    event.target.value = '';
+                    return;
+                }
+            } catch (e) {
+                // N'est pas du JSON valide
+            }
+
+                alert('Format non supporté. Veuillez utiliser un fichier JSON exporté depuis l\'application.');
+        } catch (error) {
+            console.error('Erreur lors de l\'import:', error);
+            alert('Erreur lors de l\'import du fichier');
+        }
+    };
+
+    reader.readAsText(file);
+}
+
+// Effacer toutes les données
+function clearAllData() {
+    if (confirm('Êtes-vous absolument sûr ? Cette action ne peut pas être annulée !')) {
+        if (confirm('Dernière confirmation : supprimer TOUS les véhicules ?')) {
+            localStorage.removeItem(STORAGE_KEY);
+            renderVehicles();
+            alert('Toutes les données ont été supprimées');
+        }
+    }
+}
+
+// Mettre à jour les statistiques
+function updateStats() {
+    const vehicles = getVehicles();
+    
+    document.getElementById('total-vehicles').textContent = vehicles.length;
+    
+    const diagnostique = vehicles.filter(v => v.situation === 'Diagnostique').length;
+    document.getElementById('total-diagnostique').textContent = diagnostique;
+    
+    const attente = vehicles.filter(v => 
+        v.situation === 'En attente pièce' || v.situation === 'En attente planif'
+    ).length;
+    document.getElementById('total-attente').textContent = attente;
+}
+
+// Scroll vers le formulaire
+function scrollToForm() {
+    document.getElementById('form-section').scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('immat').focus();
+}
+
+// Scroll vers les véhicules
+function scrollToVehicles() {
+    document.getElementById('vehicles-table').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Bonus: Permet d'ajouter un véhicule avec Entrée
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('planning-planifier').addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            addVehicle();
+        }
+    });
+});
+
+// Changer le lien d'import pour JSON au lieu de PDF
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('pdf-import');
+    fileInput.accept = '.json';
+    
+    // Créer un bouton d'export JSON caché
+    const exportJSON = function() {
+        exportToJSON();
+    };
+    
+    // Rendre accessible via console pour avancés
+    window.exportJSON = exportJSON;
+});
