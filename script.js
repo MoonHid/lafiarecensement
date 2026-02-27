@@ -233,69 +233,59 @@ function exportToPDF() {
         return;
     }
 
-    const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4"
-    });
-
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 15;
-    const lineHeight = 8;
+    const doc = new jsPDF("portrait", "mm", "a4");
 
     categories.forEach((cat, index) => {
-        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
 
+        const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
         if (catVehicles.length === 0) return;
 
-        if (index !== 0) {
-            doc.addPage();
-        }
+        if (index !== 0) doc.addPage();
 
         // ===== TITRE =====
         doc.setFontSize(18);
-        doc.text("Inventaire Garage", pageWidth / 2, 20, { align: "center" });
+        doc.text("Inventaire Garage", 105, 15, { align: "center" });
 
-        doc.setFontSize(14);
-        doc.text(cat, pageWidth / 2, 30, { align: "center" });
+        doc.setFontSize(12);
+        doc.text(cat, 105, 22, { align: "center" });
 
         doc.setFontSize(10);
-        doc.text("Date : " + new Date().toLocaleDateString('fr-FR'), margin, 40);
+        doc.text("Date : " + new Date().toLocaleDateString('fr-FR'), 14, 30);
 
-        let y = 50;
+        // ===== TABLEAU =====
+        const tableData = catVehicles.map(v => [
+            v.immat,
+            v.marque,
+            v.situation,
+            v.observation || "-",
+            v.planning
+        ]);
 
-        // ===== ENTÊTE TABLEAU =====
-        doc.setFillColor(230, 230, 230);
-        doc.rect(margin, y - 6, pageWidth - margin * 2, 8, "F");
-
-        doc.text("Immat", margin + 2, y);
-        doc.text("Marque", margin + 35, y);
-        doc.text("Situation", margin + 85, y);
-        doc.text("Observation", margin + 120, y);
-        doc.text("Planning", margin + 165, y);
-
-        y += 8;
-
-        // ===== LIGNES =====
-        catVehicles.forEach(vehicle => {
-
-            if (y > pageHeight - 20) {
-                doc.addPage();
-                y = 20;
+        doc.autoTable({
+            head: [['Immat', 'Marque / Couleur', 'Situation', 'Observation', 'Planning']],
+            body: tableData,
+            startY: 35,
+            theme: 'grid',
+            styles: {
+                fontSize: 9,
+                cellPadding: 3
+            },
+            headStyles: {
+                fillColor: [102, 126, 234]
+            },
+            columnStyles: {
+                0: { cellWidth: 25 },
+                1: { cellWidth: 35 },
+                2: { cellWidth: 30 },
+                3: { cellWidth: 55 },
+                4: { cellWidth: 25 }
             }
-
-            doc.text(vehicle.immat || "", margin + 2, y);
-            doc.text(vehicle.marque || "", margin + 35, y);
-            doc.text(vehicle.situation || "", margin + 85, y);
-            doc.text((vehicle.observation || "-").substring(0, 25), margin + 120, y);
-            doc.text(vehicle.planning || "", margin + 165, y);
-
-            y += lineHeight;
         });
+
     });
 
     doc.save("Garage_Inventaire_" + new Date().toLocaleDateString('fr-FR') + ".pdf");
+}
 }// Exporter les données en JSON (caché sous le PDF)
 function exportToJSON() {
     const vehicles = getVehicles();
@@ -409,5 +399,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Rendre accessible via console pour avancés
     window.exportJSON = exportJSON;
 });
+
 
 
