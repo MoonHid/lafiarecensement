@@ -1,0 +1,21 @@
+{
+  "name": "garage-inventory",
+  "version": "1.0.0",
+  "description": "Simple web application to manage garage vehicle inventory",
+  "main": "index.html",
+  "scripts": {
+    "start": "open index.html"
+  },
+  "keywords": [
+    "garage",
+    "inventory",
+    "vehicles",
+    "management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
