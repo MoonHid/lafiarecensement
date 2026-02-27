@@ -17,7 +17,7 @@ function addVehicle() {
     const planning = document.querySelector('input[name="planning"]:checked')?.value;
 
     // Validation
-    if (!immat || !marque || !situation || !planning || !categorie) {
+    if (!immat || !marque || !situation || !categorie) {
         alert('Veuillez remplir tous les champs obligatoires (*)');
         return;
     }
@@ -398,3 +398,4 @@ document.addEventListener('DOMContentLoaded', function() {
     // Rendre accessible via console pour avancés
     window.exportJSON = exportJSON;
 });
+
