@@ -177,10 +177,14 @@ function renderVehicles() {
     // Grouper les véhicules par catégorie
     const categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
     let html = '';
-    categories.forEach(cat => {
+    categories.forEach((cat, idx) => {
+        // Ajoute un espace avant chaque catégorie sauf la première
+        if (idx > 0) {
+            html += `<tr><td colspan="6" style="height:18px;background:transparent;"></td></tr>`;
+        }
         const catVehicles = vehicles.filter(v => (v.categorie || 'Ligne 1') === cat);
+        html += `<tr><td colspan="6" style="background:#e0e7ff;font-weight:bold;font-size:15px;">${cat}</td></tr>`;
         if (catVehicles.length > 0) {
-            html += `<tr><td colspan="6" style="background:#e0e7ff;font-weight:bold;font-size:15px;">${cat}</td></tr>`;
             html += catVehicles.map(vehicle => `
                 <tr>
                     <td><strong>${vehicle.immat}</strong></td>
@@ -194,6 +198,8 @@ function renderVehicles() {
                     </td>
                 </tr>
             `).join('');
+        } else {
+            html += `<tr><td colspan="6" style="text-align:center;color:#888;font-style:italic;">Aucun véhicule dans cette catégorie</td></tr>`;
         }
     });
     tableBody.innerHTML = html;
