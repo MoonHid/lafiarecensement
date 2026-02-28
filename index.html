@@ -340,12 +340,101 @@
             font-size: 12px;
             opacity: 0.9;
         }
+
+        /* ===== TABS ===== */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 0;
+            border-bottom: 3px solid #667eea;
+        }
+        .tab-btn {
+            padding: 11px 26px;
+            border: 2px solid #667eea;
+            border-bottom: none;
+            background: #e8eaf6;
+            color: #555;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-btn:hover:not(.active) {
+            background: #c5cae9;
+        }
+        .tab-content {
+            display: none;
+            padding-top: 24px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ===== BTN-INFO ===== */
+        .btn-info {
+            background: #4299e1;
+            color: white;
+        }
+        .btn-info:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+        }
+
+        /* ===== LINED TEXTAREA ===== */
+        .lined-textarea {
+            background-image: repeating-linear-gradient(
+                transparent,
+                transparent 27px,
+                #b8d4f0 27px,
+                #b8d4f0 28px
+            );
+            background-position: 0 6px;
+            line-height: 28px;
+            padding: 6px 10px;
+            font-size: 14px;
+            min-height: 140px;
+        }
+
+        /* ===== SIGNATURE ===== */
+        .signature-area {
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            background: #f9fafb;
+            padding: 10px;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        #signature-canvas {
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            cursor: crosshair;
+            background: white;
+            touch-action: none;
+            display: block;
+        }
+        .signature-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔧 Gestion Garage - Inventaire Véhicules</h1>
+        <h1>🔧 Gestion Garage – LAFIA MOBILE</h1>
 
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-btn-inventaire" onclick="showTab('inventaire')">📋 Inventaire Véhicules</button>
+            <button class="tab-btn" id="tab-btn-fiches" onclick="showTab('fiches')">🔧 Fiches Atelier</button>
+        </div>
+
+        <div id="tab-inventaire" class="tab-content active">
         <div class="stats">
             <div class="stat-card">
                 <h3 id="total-vehicles">0</h3>
@@ -465,7 +554,122 @@
                 </tbody>
             </table>
         </div>
-    </div>
+        </div><!-- /tab-inventaire -->
+
+        <!-- ============================================================ -->
+        <!--                   ONGLET FICHES ATELIER                       -->
+        <!-- ============================================================ -->
+        <div id="tab-fiches" class="tab-content">
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="document.getElementById('fiche-form-section').scrollIntoView({behavior:'smooth'})">➕ Nouvelle Fiche</button>
+                <button class="btn btn-success" onclick="exportFichesToPDF()">📥 Exporter PDF</button>
+                <button class="btn btn-info" onclick="exportFichesJSON()">💾 Exporter JSON</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('fiches-json-import').click()">📤 Importer JSON</button>
+                <button class="btn btn-danger" onclick="clearAllFiches()">🗑️ Tout Effacer</button>
+                <input type="file" id="fiches-json-import" accept=".json" style="display:none" onchange="importFichesJSON(event)">
+            </div>
+
+            <!-- ===== FORMULAIRE ===== -->
+            <div class="form-section" id="fiche-form-section">
+                <h2 id="fiche-form-title">📝 Nouvelle Fiche Atelier</h2>
+                <input type="hidden" id="fiche-id">
+
+                <div style="margin-bottom:15px;">
+                    <label for="fiche-categorie" style="font-weight:bold;margin-bottom:5px;display:block;">Catégorie (Ligne)</label>
+                    <select id="fiche-categorie" style="width:200px;">
+                        <option value="Ligne 1">Ligne 1</option>
+                        <option value="Ligne 2">Ligne 2</option>
+                        <option value="Ligne 3">Ligne 3</option>
+                        <option value="Ligne 4">Ligne 4</option>
+                        <option value="Ligne 5">Ligne 5</option>
+                    </select>
+                </div>
+
+                <!-- Infos véhicule -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fiche-marque">Marque / Modèle *</label>
+                        <input type="text" id="fiche-marque" placeholder="Ex : Citroën C3">
+                    </div>
+                    <div class="form-group">
+                        <label for="fiche-immat">Immatriculation *</label>
+                        <input type="text" id="fiche-immat" placeholder="Ex : AB-123-CD">
+                    </div>
+                    <div class="form-group">
+                        <label for="fiche-km">Kilométrage</label>
+                        <input type="text" id="fiche-km" placeholder="Ex : 141 141 137">
+                    </div>
+                </div>
+
+                <!-- Infos client -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fiche-client">Nom du client *</label>
+                        <input type="text" id="fiche-client" placeholder="Ex : Martin">
+                    </div>
+                    <div class="form-group">
+                        <label for="fiche-date">Date</label>
+                        <input type="date" id="fiche-date">
+                    </div>
+                </div>
+
+                <!-- Travaux demandés -->
+                <div class="form-group" style="margin-bottom:18px;">
+                    <label for="fiche-travaux">Travaux demandés</label>
+                    <textarea id="fiche-travaux" class="lined-textarea" rows="5" placeholder="Décrivez les travaux demandés…"></textarea>
+                </div>
+
+                <!-- Observations technicien -->
+                <div class="form-group" style="margin-bottom:18px;">
+                    <label for="fiche-obs">Observations du technicien</label>
+                    <textarea id="fiche-obs" class="lined-textarea" rows="5" placeholder="Notes et observations…"></textarea>
+                </div>
+
+                <!-- Signature technicien -->
+                <div class="form-group" style="margin-bottom:20px;">
+                    <label>Signature du technicien</label>
+                    <div class="signature-area">
+                        <canvas id="signature-canvas" width="420" height="120"></canvas>
+                        <div class="signature-controls">
+                            <button class="btn btn-secondary btn-small" type="button" onclick="clearSignature()">✕ Effacer la signature</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:10px;">
+                    <button class="btn btn-primary" id="fiche-submit-btn" onclick="addFiche()">Enregistrer la fiche</button>
+                    <button class="btn btn-secondary" id="fiche-cancel-btn" onclick="cancelFicheEdit()" style="display:none;">Annuler</button>
+                </div>
+            </div>
+
+            <!-- ===== TABLEAU ===== -->
+            <div class="table-section">
+                <table id="fiches-table">
+                    <thead>
+                        <tr>
+                            <th>Immat</th>
+                            <th>Marque / Modèle</th>
+                            <th>Client</th>
+                            <th>Date</th>
+                            <th>Travaux demandés</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fiches-table-body">
+                        <tr>
+                            <td colspan="6" class="empty-state">
+                                <div class="empty-state-icon">🔧</div>
+                                <p>Aucune fiche atelier. Créez votre première fiche !</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div><!-- /tab-fiches -->
+
+    </div><!-- /container -->
 
     <script src="script.js"></script>
 </body>
