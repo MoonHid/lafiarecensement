@@ -388,14 +388,464 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Changer le lien d'import pour JSON au lieu de PDF
 document.addEventListener('DOMContentLoaded', function() {
-    const fileInput = document.getElementById('pdf-import');
-    fileInput.accept = '.json';
-    
-    // Créer un bouton d'export JSON caché
-    const exportJSON = function() {
-        exportToJSON();
-    };
+    const fileInput = document.getElementById('json-import');
+    if (fileInput) fileInput.accept = '.json';
     
     // Rendre accessible via console pour avancés
-    window.exportJSON = exportJSON;
+    window.exportJSON = exportToJSON;
 });
+
+// ================================================================
+//                   FICHES ATELIER
+// ================================================================
+
+const STORAGE_KEY_FICHES = 'garage_fiches_atelier';
+
+// ---------- Tabs ----------
+function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(function(el) {
+        el.classList.remove('active');
+        el.style.display = 'none';
+    });
+    document.querySelectorAll('.tab-btn').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    var panel = document.getElementById('tab-' + tabName);
+    var btn   = document.getElementById('tab-btn-' + tabName);
+    if (panel) { panel.classList.add('active'); panel.style.display = 'block'; }
+    if (btn)   { btn.classList.add('active'); }
+    if (tabName === 'fiches') renderFiches();
+}
+
+// ---------- Signature canvas ----------
+var signatureCanvas, signatureCtx, isDrawing = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default date on fiche form
+    var dateInput = document.getElementById('fiche-date');
+    if (dateInput) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    // Init signature canvas
+    signatureCanvas = document.getElementById('signature-canvas');
+    if (!signatureCanvas) return;
+    signatureCtx = signatureCanvas.getContext('2d');
+    signatureCtx.strokeStyle = '#1a1a2e';
+    signatureCtx.lineWidth = 2;
+    signatureCtx.lineCap = 'round';
+    signatureCtx.lineJoin = 'round';
+
+    signatureCanvas.addEventListener('mousedown',  startDraw);
+    signatureCanvas.addEventListener('mousemove',  draw);
+    signatureCanvas.addEventListener('mouseup',    stopDraw);
+    signatureCanvas.addEventListener('mouseleave', stopDraw);
+    signatureCanvas.addEventListener('touchstart', startDrawTouch, { passive: false });
+    signatureCanvas.addEventListener('touchmove',  drawTouch,      { passive: false });
+    signatureCanvas.addEventListener('touchend',   stopDraw);
+
+    renderFiches();
+});
+
+function getCanvasPos(canvas, e) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width  / rect.width;
+    var scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+function startDraw(e) {
+    isDrawing = true;
+    var pos = getCanvasPos(signatureCanvas, e);
+    signatureCtx.beginPath();
+    signatureCtx.moveTo(pos.x, pos.y);
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    var pos = getCanvasPos(signatureCanvas, e);
+    signatureCtx.lineTo(pos.x, pos.y);
+    signatureCtx.stroke();
+}
+
+function stopDraw() { isDrawing = false; }
+
+function startDrawTouch(e) {
+    e.preventDefault();
+    startDraw({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+}
+
+function drawTouch(e) {
+    e.preventDefault();
+    draw({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+}
+
+function clearSignature() {
+    if (signatureCtx) signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+}
+
+function isSignatureEmpty() {
+    if (!signatureCanvas) return true;
+    var px = signatureCtx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height).data;
+    for (var i = 3; i < px.length; i += 4) { if (px[i] > 0) return false; }
+    return true;
+}
+
+// ---------- CRUD ----------
+function getFiches() {
+    var data = localStorage.getItem(STORAGE_KEY_FICHES);
+    return data ? JSON.parse(data) : [];
+}
+
+function saveFiches(fiches) {
+    localStorage.setItem(STORAGE_KEY_FICHES, JSON.stringify(fiches));
+}
+
+function addFiche() {
+    var ficheId  = document.getElementById('fiche-id').value;
+    var categorie = document.getElementById('fiche-categorie').value;
+    var marque   = document.getElementById('fiche-marque').value.trim();
+    var immat    = document.getElementById('fiche-immat').value.trim();
+    var km       = document.getElementById('fiche-km').value.trim();
+    var client   = document.getElementById('fiche-client').value.trim();
+    var date     = document.getElementById('fiche-date').value;
+    var travaux  = document.getElementById('fiche-travaux').value.trim();
+    var obs      = document.getElementById('fiche-obs').value.trim();
+    var signature = isSignatureEmpty() ? '' : signatureCanvas.toDataURL('image/png');
+
+    if (!marque || !immat || !client) {
+        alert('Veuillez remplir les champs obligatoires : Marque/Modèle, Immatriculation, Nom du client (*)');
+        return;
+    }
+
+    var fiches = getFiches();
+
+    if (ficheId) {
+        var idx = fiches.findIndex(function(f) { return f.id === parseInt(ficheId); });
+        if (idx !== -1) {
+            fiches[idx] = Object.assign(fiches[idx], { categorie, marque, immat, km, client, date, travaux, obs, signature });
+            saveFiches(fiches);
+            alert('Fiche modifiée avec succès !');
+            cancelFicheEdit();
+            renderFiches();
+        }
+        return;
+    }
+
+    fiches.push({ id: Date.now(), categorie, marque, immat, km, client, date, travaux, obs, signature });
+    saveFiches(fiches);
+    resetFicheForm();
+    renderFiches();
+    document.getElementById('fiches-table').scrollIntoView({ behavior: 'smooth' });
+}
+
+function editFiche(id) {
+    var fiches = getFiches();
+    var f = fiches.find(function(f) { return f.id === id; });
+    if (!f) return;
+
+    document.getElementById('fiche-id').value          = f.id;
+    document.getElementById('fiche-categorie').value   = f.categorie || 'Ligne 1';
+    document.getElementById('fiche-marque').value      = f.marque;
+    document.getElementById('fiche-immat').value       = f.immat;
+    document.getElementById('fiche-km').value          = f.km || '';
+    document.getElementById('fiche-client').value      = f.client;
+    document.getElementById('fiche-date').value        = f.date || '';
+    document.getElementById('fiche-travaux').value     = f.travaux || '';
+    document.getElementById('fiche-obs').value         = f.obs || '';
+
+    clearSignature();
+    if (f.signature) {
+        var img = new Image();
+        img.onload = function() { signatureCtx.drawImage(img, 0, 0); };
+        img.src = f.signature;
+    }
+
+    document.getElementById('fiche-form-title').textContent        = '✏️ Modifier la Fiche Atelier';
+    document.getElementById('fiche-submit-btn').textContent        = 'Enregistrer les modifications';
+    document.getElementById('fiche-cancel-btn').style.display      = 'block';
+    document.getElementById('fiche-form-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+function deleteFiche(id) {
+    if (confirm('Supprimer cette fiche atelier ?')) {
+        var fiches = getFiches().filter(function(f) { return f.id !== id; });
+        saveFiches(fiches);
+        renderFiches();
+    }
+}
+
+function cancelFicheEdit() {
+    document.getElementById('fiche-id').value = '';
+    resetFicheForm();
+    document.getElementById('fiche-form-title').textContent   = '📝 Nouvelle Fiche Atelier';
+    document.getElementById('fiche-submit-btn').textContent   = 'Enregistrer la fiche';
+    document.getElementById('fiche-cancel-btn').style.display = 'none';
+}
+
+function resetFicheForm() {
+    ['fiche-id','fiche-marque','fiche-immat','fiche-km','fiche-client','fiche-travaux','fiche-obs'].forEach(function(id) {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('fiche-categorie').value = 'Ligne 1';
+    document.getElementById('fiche-date').value = new Date().toISOString().split('T')[0];
+    clearSignature();
+}
+
+// ---------- Render ----------
+function renderFiches() {
+    var tableBody = document.getElementById('fiches-table-body');
+    if (!tableBody) return;
+    var fiches = getFiches();
+    var categories = ['Ligne 1', 'Ligne 2', 'Ligne 3', 'Ligne 4', 'Ligne 5'];
+    var html = '';
+
+    if (fiches.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="empty-state-icon">🔧</div><p>Aucune fiche atelier. Créez votre première fiche !</p></td></tr>';
+        return;
+    }
+
+    categories.forEach(function(cat, idx) {
+        if (idx > 0) html += '<tr><td colspan="6" style="height:18px;background:transparent;"></td></tr>';
+        var catFiches = fiches.filter(function(f) { return (f.categorie || 'Ligne 1') === cat; });
+        html += '<tr><td colspan="6" style="background:#e0e7ff;font-weight:bold;font-size:15px;">' + cat + '</td></tr>';
+        if (catFiches.length > 0) {
+            html += catFiches.map(function(f) {
+                var dateDisp = f.date ? new Date(f.date + 'T00:00:00').toLocaleDateString('fr-FR') : '-';
+                var travauxPrev = (f.travaux || '-').replace(/"/g, '&quot;');
+                var travauxShort = travauxPrev.length > 60 ? travauxPrev.substring(0, 57) + '…' : travauxPrev;
+                return '<tr>' +
+                    '<td><strong>' + f.immat + '</strong></td>' +
+                    '<td>' + f.marque + '</td>' +
+                    '<td>' + f.client + '</td>' +
+                    '<td>' + dateDisp + '</td>' +
+                    '<td style="max-width:200px;" title="' + travauxPrev + '">' + travauxShort + '</td>' +
+                    '<td>' +
+                        '<button class="btn btn-success btn-small" onclick="printFiche(' + f.id + ')">🖨️ PDF</button> ' +
+                        '<button class="btn btn-primary btn-small" onclick="editFiche(' + f.id + ')">Modifier</button> ' +
+                        '<button class="btn btn-danger btn-small" onclick="deleteFiche(' + f.id + ')">Supprimer</button>' +
+                    '</td></tr>';
+            }).join('');
+        } else {
+            html += '<tr><td colspan="6" style="text-align:center;color:#888;font-style:italic;">Aucune fiche dans cette catégorie</td></tr>';
+        }
+    });
+    tableBody.innerHTML = html;
+}
+
+// ---------- PDF fiche unique ----------
+function buildFicheHTML(f) {
+    var dateStr = f.date ? new Date(f.date + 'T00:00:00').toLocaleDateString('fr-FR') : '';
+
+    function buildLines(text, minRows) {
+        var lines = (text || '').split('\n');
+        while (lines.length < minRows) lines.push('');
+        return lines.map(function(l) {
+            return '<div class="line">' + (l.trim().length ? l : '&nbsp;') + '</div>';
+        }).join('');
+    }
+
+    function infoRow(label, value) {
+        return '<tr>'
+            + '<td class="info-label">' + label + '</td>'
+            + '<td class="info-value">' + (value || '') + '</td>'
+            + '</tr>';
+    }
+
+    var sigImg = f.signature
+        ? '<img src="' + f.signature + '" style="max-height:124px;max-width:332px;display:block;">'
+        : '';
+
+    return '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
+        + '<title>Fiche Atelier – ' + f.immat + '</title>'
+        + '<style>'
+        + '@page { size: A4 portrait; margin: 8mm 10mm; }'
+        + '* { box-sizing: border-box; margin: 0; padding: 0; }'
+        + 'body { font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #111; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
+        + '.page { width: 100%; }'
+
+        /* Header */
+        + '.header { background: #1a3a6b; color: white; padding: 26px 30px; display: flex; justify-content: space-between; align-items: center; border-radius: 5px 5px 0 0; }'
+        + '.header-left .brand { font-size: 28px; font-weight: 900; letter-spacing: 3px; }'
+        + '.header-left .sub { font-size: 14px; color: #a8c8ff; margin-top: 5px; letter-spacing: 1px; }'
+        + '.header-right { text-align: right; }'
+        + '.header-right .title { font-size: 22px; font-weight: 700; letter-spacing: 2px; }'
+        + '.header-right .num { font-size: 13px; color: #a8c8ff; margin-top: 5px; }'
+
+        /* Info box */
+        + '.info-box { background: #eef3fb; border-left: 6px solid #1a3a6b; padding: 16px 22px; margin: 20px 0; }'
+        + '.info-box-title { font-size: 12px; font-weight: 700; color: #1a3a6b; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }'
+        + 'table.info { width: 100%; border-collapse: collapse; }'
+        + 'td.info-label { width: 36%; font-weight: 700; font-size: 15px; padding: 8px 0; color: #1a3a6b; vertical-align: middle; }'
+        + 'td.info-value { font-size: 15px; padding: 8px 10px; vertical-align: middle; border-bottom: 1.5px solid #7aa6d6; }'
+
+        /* Section headings */
+        + '.section-title { font-size: 12px; font-weight: 700; color: #1a3a6b; letter-spacing: 2px; text-transform: uppercase; border-bottom: 2.5px solid #1a3a6b; padding-bottom: 5px; margin-bottom: 4px; margin-top: 20px; }'
+
+        /* Lines */
+        + '.line { border-bottom: 1px solid #9bbcdb; min-height: 34px; padding: 3px 8px; font-size: 15px; line-height: 30px; }'
+
+        /* Signature */
+        + '.sig-section { margin-top: 24px; }'
+        + '.sig-box { border: 1.5px solid #7aa6d6; border-radius: 4px; height: 130px; width: 340px; background: #fafcff; display: flex; align-items: center; justify-content: center; }'
+
+        /* Footer */
+        + '.footer { background: #1a3a6b; color: #a8c8ff; font-size: 12px; text-align: center; padding: 11px 0; margin-top: 24px; border-radius: 0 0 5px 5px; }'
+
+        + '@media print {'
+        + '  body { margin: 0; }'
+        + '  .no-print { display: none; }'
+        + '}'
+        + '</style></head><body>'
+
+        + '<div class="page">'
+
+        + '<div class="header">'
+        +   '<div class="header-left"><div class="brand">LAFIA MOBILE</div><div class="sub">Service Atelier</div></div>'
+        +   '<div class="header-right"><div class="title">FICHE ATELIER</div><div class="num">N° ' + f.id + '</div></div>'
+        + '</div>'
+
+        + '<div class="info-box">'
+        +   '<div class="info-box-title">Informations véhicule &amp; client</div>'
+        +   '<table class="info">'
+        +     infoRow('Marque / Modèle :', f.marque)
+        +     infoRow('Immatriculation :', f.immat)
+        +     infoRow('Kilométrage :', f.km || '')
+        +     infoRow('Nom du client :', f.client)
+        +     infoRow('Date :', dateStr)
+        +   '</table>'
+        + '</div>'
+
+        + '<div class="section-title">Travaux demandés</div>'
+        + buildLines(f.travaux, 8)
+
+        + '<div class="section-title">Observations du technicien</div>'
+        + buildLines(f.obs, 8)
+
+        + '<div class="sig-section">'
+        +   '<div class="section-title">Signature du technicien</div>'
+        +   '<div class="sig-box">' + sigImg + '</div>'
+        + '</div>'
+
+        + '<div class="footer">LAFIA MOBILE &mdash; Fiche générée le ' + new Date().toLocaleDateString('fr-FR') + '</div>'
+
+        + '</div>'
+        + '<script>window.onload=function(){window.print();}<\/script>'
+        + '</body></html>';
+}
+
+function printFiche(id) {
+    var f = getFiches().find(function(f) { return f.id === id; });
+    if (!f) return;
+    var win = window.open('', '_blank');
+    if (!win) { alert('Veuillez autoriser les popups pour imprimer la fiche.'); return; }
+    win.document.open();
+    win.document.write(buildFicheHTML(f));
+    win.document.close();
+}
+
+// ---------- Export/Import JSON fiches ----------
+function exportFichesToPDF() {
+    var fiches = getFiches();
+    if (fiches.length === 0) { alert('Aucune fiche à exporter.'); return; }
+
+    function infoRow(label, value) {
+        return '<tr><td class="info-label">' + label + '</td><td class="info-value">' + (value || '') + '</td></tr>';
+    }
+
+    var pagesHTML = fiches.map(function(f, i) {
+        var dStr = f.date ? new Date(f.date + 'T00:00:00').toLocaleDateString('fr-FR') : '';
+        var sigImg = f.signature ? '<img src="' + f.signature + '" style="max-height:124px;max-width:332px;display:block;">' : '';
+        var linesT = (f.travaux || '').split('\n');
+        while (linesT.length < 8) linesT.push('');
+        var linesO = (f.obs || '').split('\n');
+        while (linesO.length < 8) linesO.push('');
+        var tHTML = linesT.map(function(l){ return '<div class="line">' + (l.trim().length ? l : '&nbsp;') + '</div>'; }).join('');
+        var oHTML = linesO.map(function(l){ return '<div class="line">' + (l.trim().length ? l : '&nbsp;') + '</div>'; }).join('');
+        return '<div class="page' + (i > 0 ? ' page-break' : '') + '">'
+            + '<div class="header"><div class="header-left"><div class="brand">LAFIA MOBILE</div><div class="sub">Service Atelier</div></div><div class="header-right"><div class="title">FICHE ATELIER</div><div class="num">N° ' + f.id + '</div></div></div>'
+            + '<div class="info-box"><div class="info-box-title">Informations véhicule &amp; client</div><table class="info">'
+            + infoRow('Marque / Modèle :', f.marque) + infoRow('Immatriculation :', f.immat) + infoRow('Kilométrage :', f.km || '') + infoRow('Nom du client :', f.client) + infoRow('Date :', dStr)
+            + '</table></div>'
+            + '<div class="section-title">Travaux demandés</div>' + tHTML
+            + '<div class="section-title">Observations du technicien</div>' + oHTML
+            + '<div class="sig-section"><div class="section-title">Signature du technicien</div><div class="sig-box">' + sigImg + '</div></div>'
+            + '<div class="footer">LAFIA MOBILE &mdash; Fiche générée le ' + new Date().toLocaleDateString('fr-FR') + '</div>'
+            + '</div>';
+    }).join('');
+
+    var fullHTML = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiches Atelier</title>'
+        + '<style>'
+        + '@page{size:A4 portrait;margin:8mm 10mm;}'
+        + '*{box-sizing:border-box;margin:0;padding:0;}'
+        + 'body{font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#111;background:white;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        + '.page-break{page-break-before:always;}'
+        + '.header{background:#1a3a6b;color:white;padding:26px 30px;display:flex;justify-content:space-between;align-items:center;border-radius:5px 5px 0 0;}'
+        + '.header-left .brand{font-size:28px;font-weight:900;letter-spacing:3px;}'
+        + '.header-left .sub{font-size:14px;color:#a8c8ff;margin-top:5px;letter-spacing:1px;}'
+        + '.header-right{text-align:right;}'
+        + '.header-right .title{font-size:22px;font-weight:700;letter-spacing:2px;}'
+        + '.header-right .num{font-size:13px;color:#a8c8ff;margin-top:5px;}'
+        + '.info-box{background:#eef3fb;border-left:6px solid #1a3a6b;padding:16px 22px;margin:20px 0;}'
+        + '.info-box-title{font-size:12px;font-weight:700;color:#1a3a6b;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}'
+        + 'table.info{width:100%;border-collapse:collapse;}'
+        + 'td.info-label{width:36%;font-weight:700;font-size:15px;padding:8px 0;color:#1a3a6b;vertical-align:middle;}'
+        + 'td.info-value{font-size:15px;padding:8px 10px;vertical-align:middle;border-bottom:1.5px solid #7aa6d6;}'
+        + '.section-title{font-size:12px;font-weight:700;color:#1a3a6b;letter-spacing:2px;text-transform:uppercase;border-bottom:2.5px solid #1a3a6b;padding-bottom:5px;margin-bottom:4px;margin-top:20px;}'
+        + '.line{border-bottom:1px solid #9bbcdb;min-height:34px;padding:3px 8px;font-size:15px;line-height:30px;}'
+        + '.sig-section{margin-top:24px;}'
+        + '.sig-box{border:1.5px solid #7aa6d6;border-radius:4px;height:130px;width:340px;background:#fafcff;display:flex;align-items:center;justify-content:center;}'
+        + '.footer{background:#1a3a6b;color:#a8c8ff;font-size:12px;text-align:center;padding:11px 0;margin-top:24px;border-radius:0 0 5px 5px;}'
+        + '</style></head><body>'
+        + pagesHTML
+        + '<script>window.onload=function(){window.print();}<\/script>'
+        + '</body></html>';
+
+    var win = window.open('', '_blank');
+    if (!win) { alert('Veuillez autoriser les popups pour imprimer les fiches.'); return; }
+    win.document.open();
+    win.document.write(fullHTML);
+    win.document.close();
+}
+
+function exportFichesJSON() {
+    var data = JSON.stringify(getFiches(), null, 2);
+    var blob = new Blob([data], { type: 'application/json' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url;
+    a.download = 'Fiches_Atelier_' + new Date().toLocaleDateString('fr-FR').replace(/\//g, '-') + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importFichesJSON(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = JSON.parse(e.target.result);
+            if (Array.isArray(data)) {
+                if (confirm('Importer ' + data.length + ' fiche(s) ? Elles s\'ajouteront aux fiches existantes.')) {
+                    saveFiches(getFiches().concat(data));
+                    renderFiches();
+                    alert('Fiches importées avec succès !');
+                }
+            } else { alert('Format JSON invalide.'); }
+            event.target.value = '';
+        } catch(err) { alert('Erreur lors de la lecture du fichier JSON.'); }
+    };
+    reader.readAsText(file);
+}
+
+function clearAllFiches() {
+    if (confirm('Êtes-vous sûr de vouloir supprimer TOUTES les fiches atelier ?')) {
+        if (confirm('Dernière confirmation : supprimer toutes les fiches ?')) {
+            localStorage.removeItem(STORAGE_KEY_FICHES);
+            renderFiches();
+            alert('Toutes les fiches ont été supprimées.');
+        }
+    }
+}
+
