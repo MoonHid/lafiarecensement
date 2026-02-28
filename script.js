@@ -702,7 +702,7 @@ function buildFicheHTML(f) {
 
         + '<div class="header">'
         +   '<div class="header-left"><div class="brand">LAFIA MOBILE</div><div class="sub">Service Atelier</div></div>'
-        +   '<div class="header-right"><div class="title">FICHE ATELIER</div><div class="num">N° ' + f.id + '</div></div>'
+        +   '<div class="header-right"><div class="title">FICHE ATELIER</div><div class="num">N° ' + (f.categorie || 'Ligne 1') + '</div></div>'
         + '</div>'
 
         + '<div class="info-box">'
@@ -763,7 +763,7 @@ function exportFichesToPDF() {
         var tHTML = linesT.map(function(l){ return '<div class="line">' + (l.trim().length ? l : '&nbsp;') + '</div>'; }).join('');
         var oHTML = linesO.map(function(l){ return '<div class="line">' + (l.trim().length ? l : '&nbsp;') + '</div>'; }).join('');
         return '<div class="page' + (i > 0 ? ' page-break' : '') + '">'
-            + '<div class="header"><div class="header-left"><div class="brand">LAFIA MOBILE</div><div class="sub">Service Atelier</div></div><div class="header-right"><div class="title">FICHE ATELIER</div><div class="num">N° ' + f.id + '</div></div></div>'
+            + '<div class="header"><div class="header-left"><div class="brand">LAFIA MOBILE</div><div class="sub">Service Atelier</div></div><div class="header-right"><div class="title">FICHE ATELIER</div><div class="num">N° ' + (f.categorie || 'Ligne 1') + '</div></div></div>'
             + '<div class="info-box"><div class="info-box-title">Informations véhicule &amp; client</div><table class="info">'
             + infoRow('Marque / Modèle :', f.marque) + infoRow('Immatriculation :', f.immat) + infoRow('Kilométrage :', f.km || '') + infoRow('Nom du client :', f.client) + infoRow('Date :', dStr)
             + '</table></div>'
